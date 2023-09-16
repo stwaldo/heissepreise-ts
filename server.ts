@@ -7,7 +7,6 @@ import * as csv from "./site/js/misc";
 import * as chokidar from "chokidar";
 import * as express from "express";
 import * as compression from "compression";
-import { min } from "moment";
 
 function copyItemsToSite(dataDir: string) {
     const items = analysis.readJSON(`${dataDir}/latest-canonical.json.${analysis.FILE_COMPRESSOR}`);

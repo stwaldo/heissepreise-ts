@@ -1,9 +1,13 @@
-const { Model } = require("./model");
-const { STORE_KEYS } = require("./stores");
-const { Settings } = require("./settings");
-const { log, deltaTime } = require("../js/misc");
+import { Model } from "./model";
+import { STORE_KEYS } from "./stores";
+import { Settings } from "./settings";
+import { log, deltaTime } from "../js/misc";
 
 class Items extends Model {
+    private _items: any[];
+    private _filteredItems: any[];
+    private _lookup: {};
+    
     constructor() {
         super();
         this._items = [];
@@ -28,7 +32,7 @@ class Items extends Model {
         return this._lookup;
     }
 
-    async load(progress) {
+    async load(progress: () => void) {
         const settings = new Settings();
         let start = performance.now();
         const compressedItemsPerStore = [];
@@ -42,7 +46,7 @@ class Items extends Model {
                         const json = await response.json();
                         log(`Loader - loading compressed items for ${store} took ${deltaTime(start)} secs`);
                         start = performance.now();
-                        let items = exports.decompress(json);
+                        let items = decompress(json);
                         log(`Loader - Decompressing items for ${store} took ${deltaTime(start)} secs`);
                         resolve(items);
                     } catch (e) {
@@ -64,11 +68,11 @@ class Items extends Model {
         this._lookup = result.lookup;
     }
 
-    processItems(items) {
+    processItems(items: any[]) {
         const lookup = {};
         const start = performance.now();
         const interns = new Map();
-        const intern = (value) => {
+        const intern = (value: any) => {
             if (interns.has(value)) {
                 return interns.get(value);
             } else {
@@ -134,7 +138,7 @@ class Items extends Model {
                 price.date = intern(price.date);
                 price.price = price.price;
             }
-            item.priceHistory = item.priceHistory.filter((price) => price.price > 0);
+            item.priceHistory = item.priceHistory.filter((price: { price: number; }) => price.price > 0);
             item.unit = intern(item.unit);
             item.quantity = item.quantity;
 
@@ -142,8 +146,8 @@ class Items extends Model {
             item.search = intern(item.search.toLowerCase().replace(",", "."));
 
             const unitPriceFactor = item.unit == "g" || item.unit == "ml" ? 1000 : 1;
-            for (let i = 0; i < item.priceHistory.length; i++) {
-                const price = item.priceHistory[i];
+            for (const element of item.priceHistory) {
+                const price = element;
                 price.unitPrice = (price.price / item.quantity) * unitPriceFactor;
             }
         });
@@ -169,9 +173,10 @@ class Items extends Model {
     }
 }
 
-exports.Items = Items;
+const _Items = Items;
+export { _Items as Items };
 
-exports.decompress = (compressedItems) => {
+export function decompress(compressedItems: { stores: any; data: any; dates: any; n: any; }) {
     const storeLookup = compressedItems.stores;
     const data = compressedItems.data;
     const dates = compressedItems.dates;
@@ -216,4 +221,4 @@ exports.decompress = (compressedItems) => {
         };
     }
     return items;
-};
+}

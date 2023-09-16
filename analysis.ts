@@ -1,12 +1,12 @@
-const fs = require("fs");
+import * as fs from "fs";
 const fsAsync = require("fs").promises;
-const zlib = require("zlib");
-const stores = require("./stores");
-const model = require("./site/model/stores");
-const { promisify } = require("util");
+import * as zlib from "zlib";
+import * as stores from "./stores";
+import * as model from "./site/model/stores";
+import { promisify } from "util";
+import { Data } from "./site/model/model";
 
-const STORE_KEYS = Object.keys(stores);
-exports.STORE_KEYS = STORE_KEYS;
+export const STORE_KEYS = Object.keys(stores);
 
 const BROTLI_OPTIONS = {
     params: {
@@ -16,18 +16,16 @@ const BROTLI_OPTIONS = {
     },
 };
 
-const FILE_COMPRESSOR = "br";
-exports.FILE_COMPRESSOR = FILE_COMPRESSOR;
+export const FILE_COMPRESSOR = "br";
 
-function readJSON(file) {
+export function readJSON(file: string) {
     let data = fs.readFileSync(file);
     if (file.endsWith(".gz")) data = zlib.gunzipSync(data);
     if (file.endsWith(".br")) data = zlib.brotliDecompressSync(data);
-    return JSON.parse(data);
+    return JSON.parse(data.toString());
 }
-exports.readJSON = readJSON;
 
-async function readJSONAsync(file) {
+export async function readJSONAsync(file: string) {
     const gunzipAsync = promisify(zlib.gunzip);
     const brotliDecompressAsync = promisify(zlib.brotliDecompress);
 
@@ -36,16 +34,14 @@ async function readJSONAsync(file) {
     if (file.endsWith(".br")) data = await brotliDecompressAsync(data);
     return JSON.parse(data);
 }
-exports.readJSONAsync = readJSONAsync;
 
-function writeJSON(file, data, fileCompressor = false, spacer = 2, compressData = false) {
+export function writeJSON(file: string, data: Data | Buffer, fileCompressor: boolean | string = false, spacer = 2, compressData = false) {
     if (compressData) data = compress(data);
     data = JSON.stringify(data, null, spacer);
-    if (fileCompressor == "gz") data = zlib.gzipSync(data);
-    if (fileCompressor == "br") data = zlib.brotliCompressSync(data, BROTLI_OPTIONS);
-    fs.writeFileSync(`${file}${fileCompressor ? "." + fileCompressor : ""}`, data);
+    if (fileCompressor === "gz") data = zlib.gzipSync(data as Buffer);
+    if (fileCompressor === "br") data = zlib.brotliCompressSync(data as Buffer, BROTLI_OPTIONS);
+    fs.writeFileSync(`${file}${fileCompressor ? "." + fileCompressor : ""}`, data.toString());
 }
-exports.writeJSON = writeJSON;
 
 function currentDate() {
     const currentDate = new Date();
@@ -56,7 +52,7 @@ function currentDate() {
 }
 
 const strings = new Map();
-const internString = (value) => {
+const internString = (value: any) => {
     if (strings.has(value)) {
         return strings.get(value);
     } else {
@@ -65,7 +61,7 @@ const internString = (value) => {
     }
 };
 
-function getCanonicalFor(store, rawItems, today) {
+function getCanonicalFor(store: string, rawItems: string | any[], today: string) {
     const canonicalItems = [];
     for (let i = 0; i < rawItems.length; i++) {
         let item = stores[store]?.getCanonical(rawItems[i], today);
@@ -85,16 +81,16 @@ function getCanonicalFor(store, rawItems, today) {
     return canonicalItems;
 }
 
-function mergePriceHistory(oldItems, items) {
-    if (oldItems == null) return items;
+function mergePriceHistory(oldItems: any[], items: any[]) {
+    if (oldItems ===     null) return items;
 
     const lookup = {};
-    for (oldItem of oldItems) {
+    for (const oldItem of oldItems) {
         delete oldItem.unavailable;
         lookup[oldItem.store + oldItem.id] = oldItem;
     }
 
-    for (item of items) {
+    for (const item of items) {
         let oldItem = lookup[item.store + item.id];
         delete lookup[item.store + item.id];
         let currPrice = item.priceHistory[0];
@@ -104,7 +100,7 @@ function mergePriceHistory(oldItems, items) {
                 continue;
             }
 
-            for (oldPrice of oldItem.priceHistory) {
+            for (const oldPrice of oldItem.priceHistory) {
                 item.priceHistory.push(oldPrice);
             }
         }
@@ -112,7 +108,7 @@ function mergePriceHistory(oldItems, items) {
 
     console.log(`${Object.keys(lookup).length} not in latest list.`);
     let removed = {};
-    for (key of Object.keys(lookup)) {
+    for (const key of Object.keys(lookup)) {
         const item = lookup[key];
         if (model.stores[item.store]?.removeOld) {
             removed[item.store] = removed[item.store] ? removed[item.store] + 1 : 1;
@@ -130,14 +126,14 @@ function mergePriceHistory(oldItems, items) {
     return items;
 }
 
-function compareItems(refItems, items) {
+function compareItems(refItems: any, items: any[]) {
     const changes = [];
     const lookup = {};
     for (let refItem of refItems) lookup[refItem.store + refItem.id] = refItem;
 
     for (let item of items) {
         const refItem = lookup[item.store + item.id] ?? {};
-        const itemChanges = {};
+        const itemChanges: { name?: string, store?: string } = {};
         for (let key of Object.keys(item)) {
             const ref = (refItem[key] ?? "").toString();
             const now = (item[key] ?? "").toString();
@@ -157,8 +153,8 @@ function compareItems(refItems, items) {
     return changes;
 }
 
-function sortItems(items) {
-    items.sort((a, b) => {
+function sortItems(items: any[]) {
+    items.sort((a: { store: number; name: number; }, b: { store: number; name: number; }) => {
         if (a.store < b.store) {
             return -1;
         } else if (a.store > b.store) {
@@ -176,7 +172,7 @@ function sortItems(items) {
 }
 
 // Keep this in sync with items.js:decompress
-function compress(items) {
+function compress(items: Data[]): Data {
     const compressed = {
         stores: STORE_KEYS,
         n: items.length,
@@ -185,14 +181,14 @@ function compress(items) {
     };
     const uniqueDates = {};
     for (const item of items) {
-        item.priceHistory.forEach((price) => (uniqueDates[price.date.replaceAll("-", "")] = 0));
+        item.priceHistory.forEach((price: { date: string; }) => (uniqueDates[price.date.replaceAll("-", "")] = 0));
     }
     const dates = (compressed.dates = Object.keys(uniqueDates).sort());
     dates.forEach((date, index) => {
         uniqueDates[date] = index;
     });
     const data = compressed.data;
-    for (item of items) {
+    for (let item of items) {
         data.push(STORE_KEYS.indexOf(item.store));
         data.push(item.id);
         data.push(item.name);
@@ -215,20 +211,20 @@ exports.compress = compress;
 
 /// Given a directory of raw data of the form `$store-$date.json`, constructs
 /// a canonical list of all products and their historical price data.
-exports.replay = async (rawDataDir) => {
+export async function replay (rawDataDir: fs.PathLike) {
     const today = currentDate();
 
     const files = fs
         .readdirSync(rawDataDir)
         .filter((file) => file.indexOf("canonical") == -1 && STORE_KEYS.some((store) => file.indexOf(`${store}-`) == 0));
 
-    const dateSort = (a, b) => {
+    const dateSort = (a: string, b: string) => {
         const dateA = new Date(a.match(/\d{4}-\d{2}-\d{2}/)[0]);
         const dateB = new Date(b.match(/\d{4}-\d{2}-\d{2}/)[0]);
         return dateA - dateB;
     };
 
-    const getFilteredFilesFor = (store) =>
+    const getFilteredFilesFor = (store: string) =>
         files
             .filter((file) => file.indexOf(`${store}-`) == 0)
             .sort(dateSort)
@@ -240,7 +236,7 @@ exports.replay = async (rawDataDir) => {
     for (const store of STORE_KEYS) {
         await stores[store].initializeCategoryMapping();
         storeFiles[store] = getFilteredFilesFor(store);
-        canonicalFiles[store] = storeFiles[store].map((file) => {
+        canonicalFiles[store] = storeFiles[store].map((file: string) => {
             console.log(`Creating canonical items for ${file}`);
             const rawItems = readJSON(file);
             const items = exports.dedupItems(getCanonicalFor(store, rawItems, file.match(/\d{4}-\d{2}-\d{2}/)[0]));
@@ -279,17 +275,17 @@ exports.replay = async (rawDataDir) => {
     return curr;
 };
 
-exports.updateData = async function (dataDir, done) {
+export async function updateData (dataDir: any, done?: (arg0: any[]) => void) {
     const today = currentDate();
     console.log("Fetching data for date: " + today);
-    const storeFetchPromises = [];
+    const storeFetchPromises: Promise<any | void>[] = [];
     for (const store of STORE_KEYS) {
         storeFetchPromises.push(
-            new Promise(async (resolve) => {
+            (async (resolve) => {
                 const start = performance.now();
                 try {
                     const rawDataFile = `${dataDir}/${store}-${today}.json`;
-                    let rawItems;
+                    let rawItems: any[];
                     if ("SKIP_FETCHING_STORE_DATA" in process.env && fs.existsSync(rawDataFile + "." + FILE_COMPRESSOR))
                         rawItems = await readJSONAsync(rawDataFile + "." + FILE_COMPRESSOR);
                     else {
@@ -317,7 +313,7 @@ exports.updateData = async function (dataDir, done) {
                     console.error(`Error while fetching data from ${store}, continuing after ${(performance.now() - start) / 1000} seconds...`, e);
                     resolve([]);
                 }
-            })
+            })()
         );
     }
 
@@ -343,7 +339,7 @@ exports.updateData = async function (dataDir, done) {
     return items;
 };
 
-exports.migrateCompression = (dataDir, fromSuffix, toSuffix, remove = true) => {
+export function migrateCompression (dataDir: fs.PathLike, fromSuffix: string | any[], toSuffix: string, remove = true) {
     console.log(`Migrating ${fromSuffix} data to ${toSuffix}`);
     let fileCompressor = toSuffix == ".json" ? false : toSuffix.replace(".json.", "");
     const files = fs
@@ -366,7 +362,7 @@ exports.migrateCompression = (dataDir, fromSuffix, toSuffix, remove = true) => {
     }
 };
 
-exports.dedupItems = (items) => {
+export function dedupItems (items: any) {
     const lookup = {};
     const dedupItems = [];
     let duplicates = {};
