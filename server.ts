@@ -1,18 +1,19 @@
-const fs = require("fs");
-const path = require("path");
-const http = require("http");
-const analysis = require("./analysis");
-const bundle = require("./bundle");
-const csv = require("./site/js/misc");
-const chokidar = require("chokidar");
-const express = require("express");
-const compression = require("compression");
+import * as fs from "fs";
+import * as path from "path";
+import * as http from "http"
+import * as analysis from "./analysis";
+import * as bundle from "./bundle";
+import * as csv from "./site/js/misc";
+import * as chokidar from "chokidar";
+import * as express from "express";
+import * as compression from "compression";
+import { min } from "moment";
 
-function copyItemsToSite(dataDir) {
+function copyItemsToSite(dataDir: string) {
     const items = analysis.readJSON(`${dataDir}/latest-canonical.json.${analysis.FILE_COMPRESSOR}`);
     analysis.writeJSON(`site/output/data/latest-canonical.json`, items);
     for (const store of analysis.STORE_KEYS) {
-        const storeItems = items.filter((item) => item.store === store);
+        const storeItems = items.filter((item: { store: string; }) => item.store === store);
         analysis.writeJSON(`site/output/data/latest-canonical.${store}.compressed.json`, storeItems, false, 0, true);
     }
     const csvItems = csv.itemsToCSV(items);
@@ -20,7 +21,7 @@ function copyItemsToSite(dataDir) {
     console.log("Copied latest items to site.");
 }
 
-function scheduleFunction(hour, minute, second, func) {
+function scheduleFunction(hour: number, minute: number, second: number, func: () => any) {
     const now = new Date();
 
     const scheduledTime = new Date();
@@ -48,7 +49,6 @@ function parseArguments() {
     for (let i = 0; i < args.length; i++) {
         if (args[i] === "-p" || args[i] === "--port") {
             port = parseInt(args[i + 1]);
-            i++;
         } else if (args[i] === "-l" || args[i] === "--live-reload") {
             if (process.env.NODE_ENV !== "development") {
                 throw new Error("Live reload is only supported in development mode");
@@ -72,7 +72,7 @@ function setupLogging() {
     const originalConsoleLog = console.log;
     const logStream = fs.createWriteStream("site/output/data/log.txt", { flags: "a" });
     logStream.write("===========================================\n\n");
-    console.log = (message) => {
+    console.log = (message: any) => {
         const formattedMessage = `[${new Date().toISOString()}] ${message}\n`;
         logStream.write(formattedMessage);
         originalConsoleLog.apply(console, [message]);
@@ -107,7 +107,7 @@ function setupLogging() {
 
     if (fs.existsSync(`${dataDir}/latest-canonical.json.${analysis.FILE_COMPRESSOR}`)) {
         copyItemsToSite(dataDir);
-        analysis.updateData(dataDir, (_newItems) => {
+        analysis.updateData(dataDir, (_newItems: any) => {
             copyItemsToSite(dataDir);
         });
     } else {
@@ -129,14 +129,14 @@ function setupLogging() {
         const socketIO = require("socket.io");
         const sockets = [];
         const io = socketIO(server);
-        io.on("connection", (socket) => sockets.push(socket));
-        let timeoutId = 0;
+        io.on("connection", (socket: any) => sockets.push(socket));
+        let timeoutId: number | NodeJS.Timeout = 0;
         chokidar.watch("site/output").on("all", () => {
             clearTimeout(timeoutId);
             timeoutId = setTimeout(() => {
-                lastChangeTimestamp = Date.now();
-                for (let i = 0; i < sockets.length; i++) {
-                    sockets[i].send(`${lastChangeTimestamp}`);
+                const lastChangeTimestamp = Date.now();
+                for (const element of sockets) {
+                    element.send(`${lastChangeTimestamp}`);
                 }
             }, 500);
         });
